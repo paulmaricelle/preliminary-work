@@ -239,26 +239,24 @@ def build_fold_data(proteomics_raw, Y, metadata_numeric, train_idx, test_idx, co
 
     return X_train, X_test, y_train, y_test
 
-def run_experiment(model_class, loss_fn, X, Y, groups, config):
+def run_experiment(model_class, loss_fn, proteomics_raw, Y, metadata_numeric, groups, config):
     """
     Runs full GroupKFold cross-validation for a given model and loss.
     Returns median_r and ratio_std per fold.
     """
-
     results = {"median_r": [], "ratio_std": []}
     gkf = GroupKFold(n_splits=config["n_splits"])
 
-    for fold, (train_idx, test_idx) in enumerate(gkf.split(X, Y, groups=groups)):
+    for fold, (train_idx, test_idx) in enumerate(gkf.split(proteomics_raw, Y, groups=groups)):
         print(f"\n--- Fold {fold + 1}/{config['n_splits']} ---")
 
         X_train, X_test, y_train, y_test = build_fold_data(
-            X, Y, groups, train_idx, test_idx, config
+            proteomics_raw, Y, metadata_numeric, train_idx, test_idx, config
         )
 
         model     = model_class(X_train.shape[1], y_train.shape[1]).to(config["device"])
         optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"])
-
-        model = train(model, X_train, y_train, X_test, y_test, optimizer, loss_fn, config)
+        model     = train(model, X_train, y_train, X_test, y_test, optimizer, loss_fn, config)
 
         results["median_r"].append(compute_median_correlation(model, X_test, y_test))
         results["ratio_std"].append(compute_ratio_std(model, X_test, y_test))
