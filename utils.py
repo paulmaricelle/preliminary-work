@@ -252,13 +252,13 @@ def run_experiment(model_class, loss_fn, X, Y, groups, config):
         print(f"\n--- Fold {fold + 1}/{config['n_splits']} ---")
 
         X_train, X_test, y_train, y_test = build_fold_data(
-            X, Y, groups, train_idx, test_idx, config  # metadata_numeric à adapter selon ta signature
+            X, Y, groups, train_idx, test_idx, config
         )
 
         model     = model_class(X_train.shape[1], y_train.shape[1]).to(config["device"])
         optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"])
 
-        model = train(model, X_train, y_train, X_test, y_test, optimizer, loss_fn, config)  # récupère le meilleur modèle
+        model = train(model, X_train, y_train, X_test, y_test, optimizer, loss_fn, config)
 
         results["median_r"].append(compute_median_correlation(model, X_test, y_test))
         results["ratio_std"].append(compute_ratio_std(model, X_test, y_test))
@@ -285,3 +285,22 @@ def compute_median_correlation(model, X_test, Y_test):
             correlations.append(r)
 
     return np.median(correlations)
+
+def compute_ratio_std(model, X_test, Y_test):
+    """
+    Computes the median ratio of predicted std to real std per gene.
+    A ratio < 1 indicates variance compression (model predicts toward the mean).
+    """
+
+    model.eval()
+    with torch.no_grad():
+        preds = model(X_test).cpu().numpy()
+    truth = Y_test.cpu().numpy()
+
+    pred_std  = preds.std(axis=0)
+    truth_std = truth.std(axis=0)
+
+    non_constant = truth_std > 1e-8
+    ratio = pred_std[non_constant] / truth_std[non_constant]
+
+    return float(np.median(ratio))
